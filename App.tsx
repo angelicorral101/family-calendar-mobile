@@ -6,6 +6,7 @@ import TodayView from './components/TodayView';
 import WeekView from './components/WeekView';
 import MonthView from './components/MonthView';
 import VoiceCommandView from './components/VoiceCommandView';
+import ConversationalVoiceView from './components/ConversationalVoiceView';
 
 const { width } = Dimensions.get('window');
 
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const translateX = useSharedValue(0);
 
   const pages = [
+    { component: ConversationalVoiceView, title: 'Chat' },
     { component: VoiceCommandView, title: 'Voice' },
     { component: TodayView, title: 'Today' },
     { component: WeekView, title: 'Week' },

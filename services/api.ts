@@ -35,6 +35,21 @@ export interface AgentResponse {
   suggestions?: string[];
 }
 
+export interface ConversationResponse {
+  success: boolean;
+  conversation_id: string;
+  message: string;
+  audio_url?: string;
+  calendar_response?: CalendarResponse;
+  confidence: number;
+}
+
+export interface ConversationStartResponse {
+  success: boolean;
+  conversation_id: string;
+  message: string;
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -170,6 +185,87 @@ class ApiService {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return response.json();
+  }
+
+  // Start a new conversation
+  async startConversation(): Promise<ConversationStartResponse> {
+    const response = await fetch(`${this.baseUrl}/api/conversation/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  }
+
+  // Send voice message and get voice response
+  async sendVoiceMessage(
+    audioData: Blob,
+    conversationId: string,
+    voice: string = 'alloy',
+    model: string = 'gpt-4'
+  ): Promise<ConversationResponse> {
+    try {
+      console.log('Sending voice message to conversation:', conversationId);
+      console.log('Voice:', voice, 'Model:', model);
+      
+      const response = await fetch(`${this.baseUrl}/api/conversation/voice`, {
+        method: 'POST',
+        body: audioData,
+        headers: {
+          'Content-Type': audioData.type || 'audio/mp4',
+          'X-Conversation-ID': conversationId,
+          'X-Filename': 'voice_message.m4a',
+          'X-Voice': voice,
+          'X-Model': model,
+        },
+      });
+      
+      console.log('Voice response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('Voice conversation response:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('Voice conversation error:', error);
+      throw error;
+    }
+  }
+
+  // Send text message and get voice response
+  async sendTextMessage(
+    conversationId: string,
+    message: string,
+    voice: string = 'alloy',
+    model: string = 'gpt-4'
+  ): Promise<ConversationResponse> {
+    const response = await fetch(`${this.baseUrl}/api/conversation/text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        message: message,
+        voice: voice,
+        model: model,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
   }
 }
 
