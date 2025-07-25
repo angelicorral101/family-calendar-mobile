@@ -15,11 +15,10 @@ const { width } = Dimensions.get('window');
 type ContextType = { startX: number };
 
 const pages = [
-  { component: ConversationalVoiceView, title: 'Chat' },
-  // { component: VoiceCommandView, title: 'Voice' }, // Hide the Voice tab
-  { component: TodayView, title: 'Today' },
-  { component: WeekView, title: 'Week' },
-  { component: MonthView, title: 'Month' },
+  // { component: ConversationalVoiceView, title: 'Chat' }, // Removed
+  { component: TodayView, title: 'Today' },   // 0
+  { component: WeekView, title: 'Week' },     // 1
+  { component: MonthView, title: 'Month' },   // 2
 ];
 
 const AppContent: React.FC = () => {

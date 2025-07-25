@@ -9,6 +9,8 @@ export function useConversationalVoice() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
+  const meteringIntervalRef = useRef<number | null>(null);
   const { setSelectedDate, setCurrentPage } = useCalendar();
   const { setMonthRange } = useCalendar();
   const setCurrentPageRef = useRef(setCurrentPage);
@@ -17,6 +19,14 @@ export function useConversationalVoice() {
   useEffect(() => {
     setCurrentPageRef.current = setCurrentPage;
   }, [setCurrentPage]);
+
+  // Helper to clear timers
+  const clearSilenceTimers = () => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    if (meteringIntervalRef.current) clearInterval(meteringIntervalRef.current);
+    silenceTimerRef.current = null;
+    meteringIntervalRef.current = null;
+  };
 
   // Start listening (recording)
   const startListening = async () => {
@@ -34,18 +44,51 @@ export function useConversationalVoice() {
         playsInSilentModeIOS: true,
       });
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+        {
+          ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+          android: {
+            ...Audio.RecordingOptionsPresets.HIGH_QUALITY.android,
+            // @ts-expect-error meteringEnabled is supported at runtime
+            meteringEnabled: true,
+          },
+          ios: {
+            ...Audio.RecordingOptionsPresets.HIGH_QUALITY.ios,
+            // @ts-expect-error meteringEnabled is supported at runtime
+            meteringEnabled: true,
+          },
+        }
       );
       recordingRef.current = recording;
+      // Start metering interval
+      let silenceDuration = 0;
+      meteringIntervalRef.current = setInterval(async () => {
+        if (!recordingRef.current) return;
+        const status = await recordingRef.current.getStatusAsync();
+        // status.metering is in dB, lower is quieter
+        if (status.isRecording && typeof status.metering === 'number') {
+          if (status.metering < -50) {
+            silenceDuration += 200;
+            if (silenceDuration >= 3000) {
+              // 3 seconds of silence
+              clearSilenceTimers();
+              stopListening();
+            }
+          } else {
+            silenceDuration = 0; // reset if user speaks
+          }
+        }
+      }, 200);
     } catch (error) {
       setIsListening(false);
       setIsProcessing(false);
+      clearSilenceTimers();
       throw error;
     }
   };
 
   // Stop listening and process
   const stopListening = async () => {
+    clearSilenceTimers();
     if (!recordingRef.current) return;
     setIsListening(false);
     setIsProcessing(true);
@@ -83,8 +126,7 @@ export function useConversationalVoice() {
         console.log('[ConversationalVoice] Using queried_date from backend:', requestedDate);
       }
       if (requestedView === 'week') {
-        setCurrentPageRef.current(2); // Switch to WeekView (index 2)
-        // Optionally, you could store the week range in context for WeekView to use
+        setCurrentPageRef.current(1); // Switch to WeekView (index 1)
       } else if (requestedView === 'month') {
         if (result.queried_date && result.queried_date.length >= 2 && setMonthRange) {
           setMonthRange([
@@ -92,11 +134,10 @@ export function useConversationalVoice() {
             new Date(result.queried_date[1])
           ]);
         }
-        setCurrentPageRef.current(3); // Switch to MonthView (index 3)
-        // Optionally, you could store the month range in context for MonthView to use
+        setCurrentPageRef.current(2); // Switch to MonthView (index 2)
       } else if (requestedDate) {
         setSelectedDate(requestedDate);
-        setCurrentPageRef.current(1); // Switch to TodayView (index 1)
+        setCurrentPageRef.current(0); // Switch to TodayView (index 0)
       }
       // Play audio response or TTS
       if (result.audio_url) {
