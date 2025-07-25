@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Text, Dimensions } from 'react-native';
+import { View, StyleSheet, Text, Dimensions, Button } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, runOnJS, useAnimatedGestureHandler } from 'react-native-reanimated';
 import TodayView from './components/TodayView';
@@ -7,24 +7,28 @@ import WeekView from './components/WeekView';
 import MonthView from './components/MonthView';
 import VoiceCommandView from './components/VoiceCommandView';
 import ConversationalVoiceView from './components/ConversationalVoiceView';
+import { CalendarProvider, useCalendar } from './components/CalendarContext';
+import FloatingMicButton from './components/FloatingMicButton';
 
 const { width } = Dimensions.get('window');
 
 type ContextType = { startX: number };
 
-const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState(0);
+const pages = [
+  { component: ConversationalVoiceView, title: 'Chat' },
+  // { component: VoiceCommandView, title: 'Voice' }, // Hide the Voice tab
+  { component: TodayView, title: 'Today' },
+  { component: WeekView, title: 'Week' },
+  { component: MonthView, title: 'Month' },
+];
+
+const AppContent: React.FC = () => {
+  const { currentPage, setCurrentPage } = useCalendar();
   const translateX = useSharedValue(0);
-
-  const pages = [
-    { component: ConversationalVoiceView, title: 'Chat' },
-    { component: VoiceCommandView, title: 'Voice' },
-    { component: TodayView, title: 'Today' },
-    { component: WeekView, title: 'Week' },
-    { component: MonthView, title: 'Month' },
-  ];
-
   const CurrentComponent = pages[currentPage].component;
+
+  // Debug log for currentPage
+  console.log('[AppContent] currentPage:', currentPage);
 
   // Real-time tracking with Reanimated 2 gesture handler
   const gestureHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent, ContextType>({
@@ -81,9 +85,16 @@ const App: React.FC = () => {
           <CurrentComponent />
         </Animated.View>
       </PanGestureHandler>
+      <FloatingMicButton />
     </GestureHandlerRootView>
   );
 };
+
+const App: React.FC = () => (
+  <CalendarProvider>
+    <AppContent />
+  </CalendarProvider>
+);
 
 const styles = StyleSheet.create({
   container: {

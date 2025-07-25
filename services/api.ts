@@ -42,6 +42,7 @@ export interface ConversationResponse {
   audio_url?: string;
   calendar_response?: CalendarResponse;
   confidence: number;
+  queried_date?: string[];
 }
 
 export interface ConversationStartResponse {

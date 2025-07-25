@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { apiService, CalendarEvent } from '../services/api';
+import { useCalendar } from './CalendarContext';
 
 // Event type definitions
 type EventType = 'work' | 'family' | 'holiday' | 'kids';
@@ -46,9 +47,10 @@ const MonthView: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { monthRange } = useCalendar();
 
-  // Get current month info
-  const currentDate = new Date();
+  // Use monthRange if available, otherwise use current month
+  const currentDate = monthRange ? monthRange[0] : new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -71,7 +73,7 @@ const MonthView: React.FC = () => {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, []);
+  }, [monthRange]);
 
   // Generate calendar days
   const generateCalendarDays = () => {

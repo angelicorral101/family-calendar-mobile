@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { apiService, CalendarEvent } from '../services/api';
+import { useCalendar } from './CalendarContext';
 
 // Event type definitions
 type EventType = 'work' | 'family' | 'holiday' | 'kids';
@@ -30,6 +31,7 @@ const EventIcon: React.FC<{ type: EventType }> = ({ type }) => {
 };
 
 const TodayView: React.FC = () => {
+  const { selectedDate } = useCalendar();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,14 @@ const TodayView: React.FC = () => {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    apiService.getTodayEvents()
+
+    // Calculate start and end of the selected day
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    apiService.getEvents(startOfDay, endOfDay)
       .then((data) => {
         if (mounted) {
           setEvents(data);
@@ -51,7 +60,7 @@ const TodayView: React.FC = () => {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, []);
+  }, [selectedDate]);
 
   const renderItem = ({ item }: { item: CalendarEvent }) => (
     <View style={styles.eventItem}>
@@ -80,7 +89,7 @@ const TodayView: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Today's Events</Text>
+      <Text style={styles.header}>{formatDate(selectedDate)}'s Events</Text>
       {loading ? (
         <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
       ) : error ? (
@@ -90,12 +99,16 @@ const TodayView: React.FC = () => {
           data={events}
           keyExtractor={item => item.id}
           renderItem={renderItem}
-          ListEmptyComponent={<Text style={styles.noEvents}>No events for today.</Text>}
+          ListEmptyComponent={<Text style={styles.noEvents}>No events for this day.</Text>}
         />
       )}
     </View>
   );
 };
+
+function formatDate(date: Date) {
+  return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 const styles = StyleSheet.create({
   container: {
