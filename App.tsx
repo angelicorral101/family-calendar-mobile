@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, Dimensions, Button } from 'react-native';
+import React, { useState, useRef, useCallback } from 'react';
+import { View, StyleSheet, Text, Dimensions, Button, TouchableOpacity } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, runOnJS, useAnimatedGestureHandler } from 'react-native-reanimated';
 import TodayView from './components/TodayView';
@@ -9,6 +9,10 @@ import VoiceCommandView from './components/VoiceCommandView';
 import ConversationalVoiceView from './components/ConversationalVoiceView';
 import { CalendarProvider, useCalendar } from './components/CalendarContext';
 import FloatingMicButton from './components/FloatingMicButton';
+import AuthScreen from './components/AuthScreen';
+import { AuthProvider, useAuth } from './components/AuthContext';
+import FloatingChoresButton from './components/FloatingChoresButton';
+import ChoresModal from './components/ChoresModal';
 
 const { width } = Dimensions.get('window');
 
@@ -21,32 +25,31 @@ const pages = [
   { component: MonthView, title: 'Month' },   // 2
 ];
 
-const AppContent: React.FC = () => {
-  const { currentPage, setCurrentPage } = useCalendar();
-  const translateX = useSharedValue(0);
-  const CurrentComponent = pages[currentPage].component;
-
-  // Debug log for currentPage
-  console.log('[AppContent] currentPage:', currentPage);
-
-  // Real-time tracking with Reanimated 2 gesture handler
-  const gestureHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent, ContextType>({
-    onStart: (_, ctx) => {
+// Create gesture handler factory to prevent recreation
+const createGestureHandler = (
+  translateX: Animated.SharedValue<number>,
+  setCurrentPage: (page: number) => void,
+  currentPageRef: React.MutableRefObject<number>
+) => {
+  return useAnimatedGestureHandler({
+    onStart: (_: any, ctx: ContextType) => {
       ctx.startX = translateX.value;
     },
-    onActive: (event, ctx) => {
-      translateX.value = ctx.startX + event.translationX;
+    onActive: (event: any, ctx: ContextType) => {
+      translateX.value = ctx.startX + event.nativeEvent.translationX;
     },
-    onEnd: (event) => {
+    onEnd: (event: any) => {
       const swipeThreshold = width * 0.3;
-      if (event.translationX < -swipeThreshold && currentPage < pages.length - 1) {
+      const currentPageIndex = currentPageRef.current;
+      
+      if (event.nativeEvent.translationX < -swipeThreshold && currentPageIndex < pages.length - 1) {
         translateX.value = withTiming(-width, { duration: 300, easing: Easing.out(Easing.cubic) }, () => {
-          runOnJS(setCurrentPage)(currentPage + 1);
+          runOnJS(setCurrentPage)(currentPageIndex + 1);
           translateX.value = 0;
         });
-      } else if (event.translationX > swipeThreshold && currentPage > 0) {
+      } else if (event.nativeEvent.translationX > swipeThreshold && currentPageIndex > 0) {
         translateX.value = withTiming(width, { duration: 300, easing: Easing.out(Easing.cubic) }, () => {
-          runOnJS(setCurrentPage)(currentPage - 1);
+          runOnJS(setCurrentPage)(currentPageIndex - 1);
           translateX.value = 0;
         });
       } else {
@@ -54,10 +57,34 @@ const AppContent: React.FC = () => {
       }
     },
   });
+};
+
+const AppContent: React.FC = () => {
+  // All hooks must be called before any early return!
+  const { currentPage, setCurrentPage } = useCalendar();
+  const { token, loading } = useAuth();
+  const [showChores, setShowChores] = useState(false);
+  const translateX = useSharedValue(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  
+  // Safety check to ensure currentPage is within bounds
+  const safeCurrentPage = Math.max(0, Math.min(currentPage, pages.length - 1));
+  const CurrentComponent = pages[safeCurrentPage].component;
+  
+  // Use ref to store latest currentPage to avoid stale closure
+  const currentPageRef = useRef(safeCurrentPage);
+  currentPageRef.current = safeCurrentPage;
+
+  // Debug log for currentPage
+  console.log('[AppContent] currentPage:', currentPage, 'safeCurrentPage:', safeCurrentPage);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
+
+  // Only return after all hooks are called
+  if (loading) return null;
+  if (!token) return <AuthScreen />;
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -69,30 +96,58 @@ const AppContent: React.FC = () => {
               key={index}
               style={[
                 styles.dot,
-                index === currentPage && styles.activeDot
+                index === safeCurrentPage && styles.activeDot
               ]}
             />
           ))}
         </View>
-        <Text style={styles.title}>{pages[currentPage].title}</Text>
+        <Text style={styles.title}>{pages[safeCurrentPage].title}</Text>
         <View style={styles.placeholder} />
       </View>
 
-      {/* Page Content with Real-time Gesture Tracking */}
-      <PanGestureHandler onGestureEvent={gestureHandler}>
+      {/* Swipe Navigation with Smooth Transitions */}
+      <PanGestureHandler
+        onGestureEvent={(event) => {
+          const { translationX } = event.nativeEvent;
+          
+          // Only process if not already swiping
+          if (isSwiping) return;
+          
+          if (translationX < -100 && safeCurrentPage < pages.length - 1) {
+            setIsSwiping(true);
+            translateX.value = withTiming(-width, { duration: 300 }, () => {
+              runOnJS(setCurrentPage)(safeCurrentPage + 1);
+              translateX.value = 0;
+              runOnJS(setIsSwiping)(false);
+            });
+          } else if (translationX > 100 && safeCurrentPage > 0) {
+            setIsSwiping(true);
+            translateX.value = withTiming(width, { duration: 300 }, () => {
+              runOnJS(setCurrentPage)(safeCurrentPage - 1);
+              translateX.value = 0;
+              runOnJS(setIsSwiping)(false);
+            });
+          }
+        }}
+      >
         <Animated.View style={[styles.content, animatedStyle]}>
           <CurrentComponent />
         </Animated.View>
       </PanGestureHandler>
+      
       <FloatingMicButton />
+      <FloatingChoresButton onPress={() => setShowChores(true)} />
+      {showChores && <ChoresModal visible={showChores} onClose={() => setShowChores(false)} />}
     </GestureHandlerRootView>
   );
 };
 
 const App: React.FC = () => (
-  <CalendarProvider>
-    <AppContent />
-  </CalendarProvider>
+  <AuthProvider>
+    <CalendarProvider>
+      <AppContent />
+    </CalendarProvider>
+  </AuthProvider>
 );
 
 const styles = StyleSheet.create({
@@ -134,6 +189,24 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  navButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  navButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  navButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

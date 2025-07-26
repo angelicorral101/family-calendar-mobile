@@ -268,6 +268,133 @@ class ApiService {
     
     return await response.json();
   }
+
+  // Register
+  async register(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+    const response = await fetch(`${this.baseUrl}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    return await response.json();
+  }
+
+  // Login
+  async login(email: string, password: string): Promise<{ success: boolean; token?: string; error?: string }> {
+    const response = await fetch(`${this.baseUrl}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    return await response.json();
+  }
+
+  // Get chores for a specific date
+  async getChores(date: string, token: string): Promise<any[]> {
+    const response = await fetch(`${this.baseUrl}/api/chores?date=${date}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return await response.json();
+  }
+
+  // Assign a chore to a user
+  async assignChore(chore_id: string, user: string, token: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/chores/assign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ chore_id, user }),
+    });
+    return await response.json();
+  }
+
+  // Mark a chore as complete
+  async completeChore(chore_id: string, token: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/chores/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ chore_id }),
+    });
+    return await response.json();
+  }
+
+  // Delete a chore
+  async deleteChore(chore_id: string, token: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/chores/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ chore_id }),
+    });
+    return await response.json();
+  }
+
+  // Create a new chore
+  async createChore(description: string, date: string, token: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/chores`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ description, date }),
+    });
+    return await response.json();
+  }
+
+  // Chores voice assistant endpoint
+  async choresVoiceCommand(audioData: Blob | string, token: string): Promise<any> {
+    try {
+      console.log('API Service: Processing chores voice command');
+      console.log('API Base URL:', this.baseUrl);
+      console.log('Audio data type:', typeof audioData);
+      if (audioData instanceof Blob) {
+        console.log('Audio blob size:', audioData.size, 'type:', audioData.type);
+      }
+      let blob: Blob;
+      if (audioData instanceof Blob) {
+        blob = audioData;
+      } else if (typeof audioData === 'string') {
+        const response = await fetch(audioData);
+        blob = await response.blob();
+      } else {
+        throw new Error('Invalid audio data format');
+      }
+      console.log('Final blob size:', blob.size, 'type:', blob.type);
+      const response = await fetch(`${this.baseUrl}/api/chores/voice`, {
+        method: 'POST',
+        body: blob,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': blob.type || 'audio/mp4',
+          'X-Filename': 'voice_command.m4a',
+        },
+      });
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      const responseText = await response.text();
+      console.log('Response body:', responseText);
+      if (!response.ok) {
+        console.error('API Error Response:', responseText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
+      }
+      const result = JSON.parse(responseText);
+      console.log('API Response parsed:', result);
+      return result;
+    } catch (error) {
+      console.error('API Service Error:', error);
+      throw error;
+    }
+  }
 }
 
 export const apiService = new ApiService();
