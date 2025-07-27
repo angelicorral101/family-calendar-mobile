@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { apiService, CalendarEvent } from '../services/api';
 import { useCalendar } from './CalendarContext';
 
@@ -47,6 +47,9 @@ const MonthView: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(
+    Dimensions.get('window').width > Dimensions.get('window').height ? 'landscape' : 'portrait'
+  );
   const { monthRange } = useCalendar();
 
   // Use monthRange if available, otherwise use current month
@@ -74,6 +77,16 @@ const MonthView: React.FC = () => {
       });
     return () => { mounted = false; };
   }, [monthRange]);
+
+  // Listen for orientation changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const newOrientation = window.width > window.height ? 'landscape' : 'portrait';
+      setOrientation(newOrientation);
+    });
+
+    return () => subscription?.remove();
+  }, []);
 
   // Generate calendar days
   const generateCalendarDays = () => {
@@ -107,31 +120,72 @@ const MonthView: React.FC = () => {
   const renderDay = (day: any, index: number) => {
     if (day.type === 'header') {
       return (
-        <View key={index} style={styles.dayHeader}>
-          <Text style={styles.dayHeaderText}>{day.value}</Text>
+        <View key={index} style={[
+          styles.dayHeader,
+          orientation === 'landscape' && styles.dayHeaderLandscape
+        ]}>
+          <Text style={[
+            styles.dayHeaderText,
+            orientation === 'landscape' && styles.dayHeaderTextLandscape
+          ]}>{day.value}</Text>
         </View>
       );
     }
     if (day.type === 'empty') {
-      return <View key={index} style={styles.emptyDay} />;
+      return <View key={index} style={[
+        styles.emptyDay,
+        orientation === 'landscape' && styles.emptyDayLandscape
+      ]} />;
     }
     const isToday = day.value === currentDate.getDate();
     const isSelected = selectedDay === day.value;
     const hasEvents = day.events && day.events.length > 0;
+    
     return (
       <TouchableOpacity 
         key={index} 
-        style={[styles.calendarDay, isToday && styles.today, isSelected && styles.selectedDay]}
+        style={[
+          styles.calendarDay,
+          orientation === 'landscape' && styles.calendarDayLandscape,
+          isToday && styles.today,
+          isSelected && styles.selectedDay
+        ]}
         onPress={() => handleDayPress(day.value)}
       >
-        <Text style={[styles.dayNumber, isToday && styles.todayText, isSelected && styles.selectedDayText]}>{day.value}</Text>
+        <Text style={[
+          styles.dayNumber,
+          orientation === 'landscape' && styles.dayNumberLandscape,
+          isToday && styles.todayText,
+          isSelected && styles.selectedDayText
+        ]}>{day.value}</Text>
+        
         {hasEvents && (
-          <View style={styles.eventIndicators}>
-            {day.events.slice(0, 3).map((event: CalendarEvent, eventIndex: number) => (
-              <EventIcon key={eventIndex} type={getEventType(event)} />
-            ))}
-            {day.events.length > 3 && (
-              <Text style={styles.moreEvents}>+{day.events.length - 3}</Text>
+          <View style={[
+            styles.eventIndicators,
+            orientation === 'landscape' && styles.eventIndicatorsLandscape
+          ]}>
+            {orientation === 'landscape' ? (
+              // Show event descriptions in landscape
+              day.events.slice(0, 2).map((event: CalendarEvent, eventIndex: number) => (
+                <View key={eventIndex} style={styles.eventDescriptionContainer}>
+                  <Text style={styles.eventDescription} numberOfLines={1}>
+                    {formatTime(event.start_time)} {event.summary}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              // Show icons in portrait
+              <>
+                {day.events.slice(0, 3).map((event: CalendarEvent, eventIndex: number) => (
+                  <EventIcon key={eventIndex} type={getEventType(event)} />
+                ))}
+                {day.events.length > 3 && (
+                  <Text style={styles.moreEvents}>+{day.events.length - 3}</Text>
+                )}
+              </>
+            )}
+            {orientation === 'landscape' && day.events.length > 2 && (
+              <Text style={styles.moreEventsLandscape}>+{day.events.length - 2}</Text>
             )}
           </View>
         )}
@@ -203,16 +257,28 @@ const MonthView: React.FC = () => {
   ];
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.header}>{monthNames[currentMonth]} {currentYear}</Text>
+    <ScrollView style={[
+      styles.container,
+      orientation === 'landscape' && styles.containerLandscape
+    ]} showsVerticalScrollIndicator={false}>
+      <Text style={[
+        styles.header,
+        orientation === 'landscape' && styles.headerLandscape
+      ]}>{monthNames[currentMonth]} {currentYear}</Text>
       {loading ? (
         <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
       ) : error ? (
         <Text style={styles.noEvents}>{error}</Text>
       ) : (
         <>
-          <View style={styles.calendarContainer}>
-            <View style={styles.calendarGrid}>
+          <View style={[
+            styles.calendarContainer,
+            orientation === 'landscape' && styles.calendarContainerLandscape
+          ]}>
+            <View style={[
+              styles.calendarGrid,
+              orientation === 'landscape' && styles.calendarGridLandscape
+            ]}>
               {calendarDays.map((day, index) => renderDay(day, index))}
             </View>
           </View>
@@ -229,6 +295,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingTop: 20,
     paddingHorizontal: 20
+  },
+  containerLandscape: {
+    paddingTop: 10,
+    paddingHorizontal: 10,
   },
   header: {
     fontSize: 28,
@@ -415,6 +485,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6c757d',
     marginTop: 4,
+  },
+  // Landscape styles
+  headerLandscape: {
+    fontSize: 24,
+    marginBottom: 16,
+  },
+  dayHeaderLandscape: {
+    height: 30,
+    marginBottom: 4,
+  },
+  dayHeaderTextLandscape: {
+    fontSize: 12,
+  },
+  emptyDayLandscape: {
+    height: 120,
+  },
+  calendarDayLandscape: {
+    height: 120,
+    padding: 2,
+  },
+  dayNumberLandscape: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  eventIndicatorsLandscape: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  eventDescriptionContainer: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginVertical: 1,
+    width: '100%',
+  },
+  eventDescription: {
+    fontSize: 10,
+    color: '#333',
+    fontWeight: '500',
+  },
+  moreEventsLandscape: {
+    fontSize: 10,
+    color: '#6c757d',
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  calendarContainerLandscape: {
+    padding: 8,
+    marginBottom: 16,
+  },
+  calendarGridLandscape: {
+    // Keep existing flexDirection and flexWrap
   },
 });
 

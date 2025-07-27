@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, StyleSheet, Text, Dimensions, Button, TouchableOpacity } from 'react-native';
 import { GestureHandlerRootView, PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, runOnJS, useAnimatedGestureHandler } from 'react-native-reanimated';
@@ -14,9 +14,12 @@ import { AuthProvider, useAuth } from './components/AuthContext';
 import FloatingChoresButton from './components/FloatingChoresButton';
 import ChoresModal from './components/ChoresModal';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 type ContextType = { startX: number };
+
+// Orientation detection
+const isLandscape = () => width > height;
 
 const pages = [
   // { component: ConversationalVoiceView, title: 'Chat' }, // Removed
@@ -66,6 +69,7 @@ const AppContent: React.FC = () => {
   const [showChores, setShowChores] = useState(false);
   const translateX = useSharedValue(0);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(isLandscape() ? 'landscape' : 'portrait');
   
   // Safety check to ensure currentPage is within bounds
   const safeCurrentPage = Math.max(0, Math.min(currentPage, pages.length - 1));
@@ -78,6 +82,17 @@ const AppContent: React.FC = () => {
   // Debug log for currentPage
   console.log('[AppContent] currentPage:', currentPage, 'safeCurrentPage:', safeCurrentPage);
 
+  // Listen for orientation changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const newOrientation = window.width > window.height ? 'landscape' : 'portrait';
+      console.log('Orientation changed to:', newOrientation, 'Dimensions:', window.width, 'x', window.height);
+      setOrientation(newOrientation);
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
@@ -89,7 +104,10 @@ const AppContent: React.FC = () => {
   return (
     <GestureHandlerRootView style={styles.container}>
       {/* Navigation Header */}
-      <View style={styles.header}>
+      <View style={[
+        styles.header,
+        orientation === 'landscape' && styles.headerLandscape
+      ]}>
         <View style={styles.pageIndicator}>
           {pages.map((_, index) => (
             <View
@@ -101,7 +119,10 @@ const AppContent: React.FC = () => {
             />
           ))}
         </View>
-        <Text style={styles.title}>{pages[safeCurrentPage].title}</Text>
+        <Text style={[
+          styles.title,
+          orientation === 'landscape' && styles.titleLandscape
+        ]}>{pages[safeCurrentPage].title} ({orientation})</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -166,6 +187,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  headerLandscape: {
+    paddingTop: 20,
+    paddingBottom: 5,
+  },
   pageIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -183,6 +208,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  titleLandscape: {
+    fontSize: 18,
   },
   placeholder: {
     width: 50,

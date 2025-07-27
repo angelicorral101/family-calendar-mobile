@@ -1,10 +1,22 @@
-import React from 'react';
-import { TouchableOpacity, StyleSheet, View, Platform, Animated, Text } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { TouchableOpacity, StyleSheet, View, Platform, Animated, Text, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useConversationalVoice } from './useConversationalVoice';
 
 const FloatingMicButton: React.FC = () => {
   const { isListening, isProcessing, startListening, stopListening } = useConversationalVoice();
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(
+    Dimensions.get('window').width > Dimensions.get('window').height ? 'landscape' : 'portrait'
+  );
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const newOrientation = window.width > window.height ? 'landscape' : 'portrait';
+      setOrientation(newOrientation);
+    });
+
+    return () => subscription?.remove();
+  }, []);
 
   const handlePress = () => {
     if (isListening) {
@@ -15,7 +27,10 @@ const FloatingMicButton: React.FC = () => {
   };
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={[
+      styles.container,
+      orientation === 'landscape' && styles.containerLandscape
+    ]} pointerEvents="box-none">
       <TouchableOpacity
         style={[styles.button, isListening && styles.buttonGlow]}
         onPress={handlePress}
@@ -25,7 +40,10 @@ const FloatingMicButton: React.FC = () => {
         <MaterialCommunityIcons name="microphone" size={32} color="#fff" />
       </TouchableOpacity>
       {isListening && (
-        <View style={styles.listeningOverlay}>
+        <View style={[
+          styles.listeningOverlay,
+          orientation === 'landscape' && styles.listeningOverlayLandscape
+        ]}>
           <Text style={styles.listeningText}>Listening…</Text>
         </View>
       )}
@@ -41,6 +59,10 @@ const styles = StyleSheet.create({
     zIndex: 100,
     elevation: 10,
     pointerEvents: 'box-none',
+  },
+  containerLandscape: {
+    bottom: Platform.OS === 'ios' ? 20 : 16,
+    right: 16,
   },
   button: {
     backgroundColor: '#007AFF',
@@ -69,6 +91,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
+  },
+  listeningOverlayLandscape: {
+    bottom: 60,
   },
   listeningText: {
     color: '#fff',

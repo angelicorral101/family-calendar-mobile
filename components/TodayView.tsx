@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Dimensions } from 'react-native';
 import { apiService, CalendarEvent } from '../services/api';
 import { useCalendar } from './CalendarContext';
 
@@ -35,6 +35,9 @@ const TodayView: React.FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(
+    Dimensions.get('window').width > Dimensions.get('window').height ? 'landscape' : 'portrait'
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -62,6 +65,16 @@ const TodayView: React.FC = () => {
     return () => { mounted = false; };
   }, [selectedDate]);
 
+  // Listen for orientation changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const newOrientation = window.width > window.height ? 'landscape' : 'portrait';
+      setOrientation(newOrientation);
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
   const renderItem = ({ item }: { item: CalendarEvent }) => (
     <View style={styles.eventItem}>
       <View style={styles.timeContainer}>
@@ -88,8 +101,14 @@ const TodayView: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>{formatDate(selectedDate)}'s Events</Text>
+    <View style={[
+      styles.container,
+      orientation === 'landscape' && styles.containerLandscape
+    ]}>
+      <Text style={[
+        styles.header,
+        orientation === 'landscape' && styles.headerLandscape
+      ]}>{formatDate(selectedDate)}'s Events</Text>
       {loading ? (
         <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
       ) : error ? (
@@ -117,11 +136,19 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
   },
+  containerLandscape: {
+    paddingTop: 20,
+    paddingHorizontal: 40,
+  },
   header: {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 24,
     textAlign: 'center',
+  },
+  headerLandscape: {
+    fontSize: 24,
+    marginBottom: 16,
   },
   eventItem: {
     flexDirection: 'row',
